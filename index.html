@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sierra Summit · Speaker Image Tool</title>
+<style>
+  :root {
+    --bg: #0e0e10;
+    --panel: #17171b;
+    --panel-2: #1f1f25;
+    --border: #2c2c34;
+    --text: #ececf0;
+    --muted: #9a9aa6;
+    --accent: #b98cf5;
+    --radius: 12px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); min-height: 100vh; }
+  header {
+    padding: 18px 28px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: baseline; gap: 12px;
+  }
+  header h1 { font-size: 16px; font-weight: 600; margin: 0; letter-spacing: .2px; }
+  header span { font-size: 13px; color: var(--muted); }
+  .wrap { display: grid; grid-template-columns: 350px 1fr; min-height: calc(100vh - 59px); }
+  .controls { padding: 22px; border-right: 1px solid var(--border); overflow-y: auto; }
+  .stage {
+    padding: 32px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 18px; background: radial-gradient(circle at 50% 0%, #1a1a20 0%, var(--bg) 60%);
+  }
+  .group { margin-bottom: 22px; }
+  .group > label.title {
+    display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .8px;
+    color: var(--muted); margin-bottom: 10px; font-weight: 600;
+  }
+  .group > label.title .sub { text-transform: none; letter-spacing: 0; font-weight: 400; }
+
+  .drop {
+    display: block;
+    border: 1.5px dashed var(--border); border-radius: var(--radius); padding: 22px 16px;
+    text-align: center; cursor: pointer; transition: border-color .15s, background .15s;
+    font-size: 13px; color: var(--muted);
+  }
+  .drop:hover, .drop.over { border-color: var(--accent); background: var(--panel-2); color: var(--text); }
+  .drop strong { color: var(--text); display: block; margin-bottom: 4px; font-size: 14px; }
+  input[type=file] { display: none; }
+
+  .swatches { display: flex; gap: 10px; flex-wrap: wrap; }
+  .swatch {
+    width: 46px; height: 46px; border-radius: 10px; border: 2px solid transparent; cursor: pointer;
+    position: relative; outline: 1px solid var(--border); transition: transform .1s;
+  }
+  .swatch:hover { transform: translateY(-2px); }
+  .swatch.active { border-color: var(--accent); }
+  .swatch.none { background: var(--panel-2); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 11px; }
+
+  .seg { display: flex; background: var(--panel-2); border-radius: 10px; padding: 3px; gap: 3px; }
+  .seg button { flex: 1; border: none; background: transparent; color: var(--muted); padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; }
+  .seg button.active { background: var(--accent); color: #16121d; }
+
+  .slider-row { display: flex; align-items: center; gap: 12px; }
+  input[type=range] { flex: 1; accent-color: var(--accent); }
+  .val { font-size: 12px; color: var(--muted); width: 46px; text-align: right; font-variant-numeric: tabular-nums; }
+
+  .color-row { display: flex; align-items: center; gap: 10px; }
+  input[type=color] { width: 46px; height: 36px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); cursor: pointer; padding: 2px; }
+  input[type=text].hex { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px 10px; font-size: 13px; width: 104px; font-family: ui-monospace, Menlo, monospace; }
+  .bg-presets { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .bg-presets .swatch { width: 32px; height: 32px; }
+
+  .canvas-frame { position: relative; max-width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,.5); border-radius: 4px; overflow: hidden; line-height: 0; }
+  #canvas { display: block; max-width: 100%; max-height: 60vh; cursor: grab; }
+  #canvas.dragging { cursor: grabbing; }
+  .empty-hint { color: var(--muted); font-size: 14px; text-align: center; max-width: 340px; line-height: 1.5; }
+
+  .overlay-status { position: absolute; inset: 0; background: rgba(14,14,16,.85); display: none; flex-direction: column; align-items: center; justify-content: center; gap: 14px; color: var(--text); font-size: 14px; z-index: 5; text-align: center; padding: 20px; }
+  .overlay-status.show { display: flex; }
+  .spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  button.primary { background: var(--accent); color: #16121d; border: none; padding: 11px 22px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  button.primary:disabled { opacity: .4; cursor: not-allowed; }
+  button.ghost { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); padding: 11px 18px; border-radius: 10px; font-size: 14px; cursor: pointer; }
+  button.ghost:disabled { opacity: .4; cursor: not-allowed; }
+  .note { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; }
+  .switch { position: relative; width: 40px; height: 22px; flex: none; }
+  .switch input { display: none; }
+  .switch span { position: absolute; inset: 0; background: var(--panel-2); border: 1px solid var(--border); border-radius: 22px; transition: .15s; }
+  .switch span::before { content: ""; position: absolute; width: 16px; height: 16px; left: 3px; top: 2px; background: var(--muted); border-radius: 50%; transition: .15s; }
+  .switch input:checked + span { background: var(--accent); border-color: var(--accent); }
+  .switch input:checked + span::before { transform: translateX(18px); background: #16121d; }
+
+  /* Save row + library */
+  .save-row { display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; }
+  .name-input { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 10px 12px; font-size: 14px; width: 220px; }
+  .name-input::placeholder { color: var(--muted); }
+  .saved-flash { color: #7bd88f; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .saved-flash.show { opacity: 1; }
+
+  .modal { position: fixed; inset: 0; background: rgba(8,8,10,.72); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; z-index: 20; padding: 24px; }
+  .modal.show { display: flex; }
+  .modal-card { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; width: min(940px, 100%); max-height: 86vh; display: flex; flex-direction: column; overflow: hidden; }
+  .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-bottom: 1px solid var(--border); }
+  .modal-head h2 { margin: 0; font-size: 16px; font-weight: 600; }
+  .modal-head button { background: transparent; border: none; color: var(--muted); font-size: 20px; cursor: pointer; line-height: 1; }
+  .lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; padding: 22px; overflow-y: auto; }
+  .lib-empty { padding: 48px 22px; text-align: center; color: var(--muted); font-size: 14px; }
+  .lib-item { background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
+  .lib-item .thumb { width: 100%; aspect-ratio: 1 / 1; object-fit: contain; background: #0c0c0f; display: block; }
+  .lib-item .meta { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .lib-item .meta input { background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 6px 8px; font-size: 13px; width: 100%; }
+  .lib-item .tag { font-size: 11px; color: var(--muted); }
+  .lib-item .row { display: flex; gap: 6px; }
+  .lib-item .row button { flex: 1; border: none; border-radius: 8px; padding: 7px; font-size: 12px; cursor: pointer; }
+  .lib-item .dl { background: var(--accent); color: #16121d; font-weight: 600; }
+  .lib-item .del { background: transparent; color: #e88a8a; border: 1px solid var(--border); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Sierra Summit</h1>
+  <span>Speaker Image Tool</span>
+</header>
+
+<div class="wrap">
+  <aside class="controls">
+    <div class="group">
+      <label class="title">1 · Upload speaker photo</label>
+      <label class="drop" id="drop">
+        <strong>Drop image or click</strong>
+        Background removed &amp; converted to B&amp;W automatically
+        <input type="file" id="file" accept="image/*" />
+      </label>
+      <div class="note" id="uploadNote"></div>
+    </div>
+
+    <div class="group">
+      <label class="title">2 · Color theme <span class="sub">(soft-light 20% overlay + matching background)</span></label>
+      <div class="swatches" id="themeSwatches">
+        <div class="swatch none" data-theme="none" title="No overlay">None</div>
+        <div class="swatch" data-theme="purple" data-overlay="#E2CFFD" data-bg="#E9DDFC" style="background:#E2CFFD" title="Purple"></div>
+        <div class="swatch" data-theme="blue"   data-overlay="#8BBFF5" data-bg="#C1DFFB" style="background:#8BBFF5" title="Blue"></div>
+        <div class="swatch" data-theme="green"  data-overlay="#4FAF62" data-bg="#C6F4D0" style="background:#4FAF62" title="Green"></div>
+        <div class="swatch" data-theme="yellow" data-overlay="#EBEB98" data-bg="#EFEFA7" style="background:#EBEB98" title="Yellow"></div>
+      </div>
+      <div class="note">Picking a theme sets both the overlay and a matching background. You can still override the background below.</div>
+    </div>
+
+    <div class="group">
+      <div class="toggle-row" style="margin-bottom:8px;">
+        <label class="title" style="margin:0;">Black &amp; white</label>
+        <label class="switch"><input type="checkbox" id="bwToggle" checked /><span></span></label>
+      </div>
+    </div>
+
+    <div class="group">
+      <label class="title">3 · Zoom</label>
+      <div class="slider-row">
+        <input type="range" id="zoom" min="0.4" max="3" step="0.01" value="1" />
+        <span class="val" id="zoomVal">100%</span>
+      </div>
+      <div class="note">Drag the photo on the canvas to reposition.</div>
+    </div>
+
+    <div class="group">
+      <label class="title">Grain</label>
+      <div class="slider-row">
+        <input type="range" id="grain" min="0" max="100" step="1" value="45" />
+        <span class="val" id="grainVal">45</span>
+      </div>
+    </div>
+
+    <div class="group">
+      <label class="title">4 · Background color</label>
+      <div class="color-row">
+        <input type="color" id="bgColor" value="#E9DDFC" />
+        <input type="text" class="hex" id="bgHex" value="#E9DDFC" />
+      </div>
+      <div class="bg-presets" id="bgPresets">
+        <div class="swatch" data-bg="#E9DDFC" style="background:#E9DDFC"></div>
+        <div class="swatch" data-bg="#C1DFFB" style="background:#C1DFFB"></div>
+        <div class="swatch" data-bg="#C6F4D0" style="background:#C6F4D0"></div>
+        <div class="swatch" data-bg="#EFEFA7" style="background:#EFEFA7"></div>
+        <div class="swatch" data-bg="#ffffff" style="background:#ffffff"></div>
+        <div class="swatch" data-bg="#111318" style="background:#111318"></div>
+      </div>
+    </div>
+
+    <div class="group">
+      <label class="title">5 · Output format</label>
+      <div class="seg" id="aspect">
+        <button data-ar="1:1" class="active">Square 1:1</button>
+        <button data-ar="16:9">Wide 16:9</button>
+      </div>
+      <div class="note" id="resNote">Exports 2400 × 2400 PNG</div>
+    </div>
+  </aside>
+
+  <main class="stage">
+    <div class="canvas-frame" id="frame">
+      <canvas id="canvas" width="2400" height="2400"></canvas>
+      <div class="overlay-status" id="status">
+        <div class="spinner"></div>
+        <div id="statusText">Removing background…</div>
+      </div>
+    </div>
+    <div class="empty-hint" id="emptyHint">Upload a speaker photo to get started. Everything runs locally in your browser — the image is never uploaded to a server.</div>
+    <div class="save-row">
+      <input type="text" id="imgName" class="name-input" placeholder="Name this image…" />
+      <button class="ghost" id="save" disabled>Save to library</button>
+      <span class="saved-flash" id="savedFlash">Saved ✓</span>
+    </div>
+    <div class="actions">
+      <button class="primary" id="download" disabled>Download PNG</button>
+      <button class="ghost" id="reset" disabled>Reset framing</button>
+      <button class="ghost" id="openLib">Library (0)</button>
+    </div>
+  </main>
+</div>
+
+<div class="modal" id="libraryModal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h2>Saved images</h2>
+      <button id="closeLib" title="Close">✕</button>
+    </div>
+    <div class="lib-grid" id="libGrid"></div>
+    <div class="lib-empty" id="libEmpty">No saved images yet. Compose an image and click “Save to library”.</div>
+  </div>
+</div>
+
+<script type="module">
+// The background-removal library is loaded lazily on first upload (see loadRemover),
+// so the rest of the tool works instantly and even offline.
+let removeBackground = null;
+async function loadRemover() {
+  if (removeBackground) return removeBackground;
+  // esm.sh serves a browser-ready bundle (resolves the library's bare imports).
+  const mod = await import('https://esm.sh/@imgly/background-removal@1.5.5');
+  removeBackground = mod.removeBackground;
+  return removeBackground;
+}
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+const DIMS = { '1:1': [2400, 2400], '16:9': [3840, 2160] };
+const TOP_MARGIN = 0.07;   // top of subject sits this fraction below the top edge
+const FILL_W = 0.92;       // at zoom 1, subject bbox spans this fraction of canvas width
+
+const state = {
+  fgImage: null,     // Image (background removed, transparent PNG)
+  bbox: null,        // {x,y,w,h} tight opaque bounding box in image px
+  zoom: 1,
+  offsetX: 0,
+  offsetY: 0,
+  overlay: '',       // hex or '' for none
+  bw: true,
+  bgColor: '#E9DDFC',
+  aspect: '1:1',
+  grain: 45,
+};
+
+// cached noise tile, regenerated per canvas size
+let noiseCanvas = null, noiseKey = '';
+function getNoise(W, H) {
+  const key = W + 'x' + H;
+  if (noiseCanvas && noiseKey === key) return noiseCanvas;
+  const nc = document.createElement('canvas');
+  nc.width = W; nc.height = H;
+  const nctx = nc.getContext('2d');
+  const img = nctx.createImageData(W, H);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const v = (Math.random() * 255) | 0;
+    d[i] = d[i+1] = d[i+2] = v;
+    d[i+3] = 255;
+  }
+  nctx.putImageData(img, 0, 0);
+  noiseCanvas = nc; noiseKey = key;
+  return nc;
+}
+
+// offscreen for building the tinted subject
+const sub = document.createElement('canvas');
+const sctx = sub.getContext('2d');
+
+function baseScale() {
+  return (canvas.width * FILL_W) / state.bbox.w;
+}
+
+function render() {
+  const [W, H] = DIMS[state.aspect];
+  if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; }
+
+  // 1) background
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
+  ctx.filter = 'none';
+  ctx.fillStyle = state.bgColor;
+  ctx.fillRect(0, 0, W, H);
+
+  // 2) subject (grayscale + soft-light overlay clipped to subject shape)
+  if (state.fgImage) {
+    const s = baseScale() * state.zoom;
+    const iw = state.fgImage.width * s;
+    const ih = state.fgImage.height * s;
+    // anchor: center bbox horizontally, place bbox top near canvas top
+    const bx = state.bbox.x * s, by = state.bbox.y * s, bw = state.bbox.w * s;
+    let ox = (W - bw) / 2 - bx + state.offsetX;
+    let oy = H * TOP_MARGIN - by + state.offsetY;
+
+    sub.width = W; sub.height = H;
+    sctx.clearRect(0, 0, W, H);
+    sctx.globalCompositeOperation = 'source-over';
+    sctx.globalAlpha = 1;
+    sctx.filter = state.bw ? 'grayscale(1) contrast(1.05)' : 'none';
+    sctx.imageSmoothingQuality = 'high';
+    sctx.drawImage(state.fgImage, ox, oy, iw, ih);
+    sctx.filter = 'none';
+
+    if (state.overlay) {
+      // soft-light color wash over the subject, then clip back to subject alpha
+      sctx.globalCompositeOperation = 'soft-light';
+      sctx.globalAlpha = 0.2;
+      sctx.fillStyle = state.overlay;
+      sctx.fillRect(0, 0, W, H);
+      sctx.globalCompositeOperation = 'destination-in';
+      sctx.globalAlpha = 1;
+      sctx.drawImage(state.fgImage, ox, oy, iw, ih);
+      sctx.globalCompositeOperation = 'source-over';
+    }
+
+    ctx.drawImage(sub, 0, 0);
+  }
+
+  // 3) film grain across the whole composition
+  if (state.grain > 0) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'soft-light';
+    ctx.globalAlpha = state.grain / 100 * 0.9;
+    ctx.drawImage(getNoise(W, H), 0, 0);
+    ctx.restore();
+  }
+}
+
+// coalesce rapid updates (drag / sliders) into one paint per frame
+let rafPending = false;
+function scheduleRender() {
+  if (rafPending) return;
+  rafPending = true;
+  requestAnimationFrame(() => { rafPending = false; render(); });
+}
+
+// ---------- Subject bounding box from alpha ----------
+function computeBBox(img) {
+  const c = document.createElement('canvas');
+  const scale = Math.min(1, 400 / Math.max(img.width, img.height));
+  c.width = Math.round(img.width * scale);
+  c.height = Math.round(img.height * scale);
+  const cx = c.getContext('2d', { willReadFrequently: true });
+  cx.drawImage(img, 0, 0, c.width, c.height);
+  const d = cx.getImageData(0, 0, c.width, c.height).data;
+  let minX = c.width, minY = c.height, maxX = 0, maxY = 0, found = false;
+  for (let y = 0; y < c.height; y++) {
+    for (let x = 0; x < c.width; x++) {
+      if (d[(y * c.width + x) * 4 + 3] > 25) {
+        found = true;
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (!found) return { x: 0, y: 0, w: img.width, h: img.height };
+  return {
+    x: minX / scale, y: minY / scale,
+    w: (maxX - minX + 1) / scale, h: (maxY - minY + 1) / scale,
+  };
+}
+
+// ---------- Upload + background removal ----------
+const fileInput = document.getElementById('file');
+const drop = document.getElementById('drop');
+const statusEl = document.getElementById('status');
+const statusText = document.getElementById('statusText');
+const uploadNote = document.getElementById('uploadNote');
+
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+async function handleFile(file) {
+  if (!file.type.startsWith('image/')) { uploadNote.textContent = 'Please choose an image file.'; return; }
+  showStatus('Removing background… first run downloads the model (~40 MB), please wait.');
+  uploadNote.textContent = '';
+  try {
+    const remove = await loadRemover();
+    const blob = await remove(file);
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      state.fgImage = img;
+      state.bbox = computeBBox(img);
+      state.offsetX = 0; state.offsetY = 0; state.zoom = 1;
+      document.getElementById('zoom').value = 1;
+      document.getElementById('zoomVal').textContent = '100%';
+      document.getElementById('emptyHint').style.display = 'none';
+      document.getElementById('download').disabled = false;
+      document.getElementById('reset').disabled = false;
+      document.getElementById('save').disabled = false;
+      hideStatus();
+      render();
+    };
+    img.src = url;
+  } catch (err) {
+    console.error(err);
+    hideStatus();
+    uploadNote.textContent = 'Background removal failed. It needs internet access (the model loads from a CDN). Check your connection and try again.';
+  }
+}
+function showStatus(t) { statusText.textContent = t; statusEl.classList.add('show'); }
+function hideStatus() { statusEl.classList.remove('show'); }
+
+// ---------- Controls ----------
+document.getElementById('themeSwatches').addEventListener('click', e => {
+  const sw = e.target.closest('.swatch'); if (!sw) return;
+  document.querySelectorAll('#themeSwatches .swatch').forEach(s => s.classList.remove('active'));
+  sw.classList.add('active');
+  state.overlay = sw.dataset.overlay || '';
+  if (sw.dataset.bg) setBg(sw.dataset.bg);
+  render();
+});
+
+document.getElementById('bwToggle').addEventListener('change', e => { state.bw = e.target.checked; render(); });
+
+const zoom = document.getElementById('zoom');
+const zoomVal = document.getElementById('zoomVal');
+zoom.addEventListener('input', e => { state.zoom = parseFloat(e.target.value); zoomVal.textContent = Math.round(state.zoom * 100) + '%'; scheduleRender(); });
+
+const grain = document.getElementById('grain');
+const grainVal = document.getElementById('grainVal');
+grain.addEventListener('input', e => { state.grain = parseInt(e.target.value); grainVal.textContent = state.grain; scheduleRender(); });
+
+const bgColor = document.getElementById('bgColor');
+const bgHex = document.getElementById('bgHex');
+bgColor.addEventListener('input', e => setBg(e.target.value));
+bgHex.addEventListener('change', e => { let v = e.target.value.trim(); if (!v.startsWith('#')) v = '#' + v; if (/^#[0-9a-fA-F]{6}$/.test(v)) setBg(v); });
+document.getElementById('bgPresets').addEventListener('click', e => { const sw = e.target.closest('.swatch'); if (sw) setBg(sw.dataset.bg); });
+function setBg(v) { state.bgColor = v; bgColor.value = v; bgHex.value = v; render(); }
+
+document.getElementById('aspect').addEventListener('click', e => {
+  const btn = e.target.closest('button'); if (!btn) return;
+  document.querySelectorAll('#aspect button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  state.aspect = btn.dataset.ar;
+  const [w, h] = DIMS[state.aspect];
+  document.getElementById('resNote').textContent = `Exports ${w} × ${h} PNG`;
+  render();
+});
+
+// drag to reposition
+let dragging = false, lastX = 0, lastY = 0;
+canvas.addEventListener('pointerdown', e => {
+  if (!state.fgImage) return;
+  dragging = true; canvas.classList.add('dragging');
+  lastX = e.clientX; lastY = e.clientY; canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove', e => {
+  if (!dragging) return;
+  const rect = canvas.getBoundingClientRect();
+  state.offsetX += (e.clientX - lastX) * (canvas.width / rect.width);
+  state.offsetY += (e.clientY - lastY) * (canvas.height / rect.height);
+  lastX = e.clientX; lastY = e.clientY; scheduleRender();
+});
+canvas.addEventListener('pointerup', () => { dragging = false; canvas.classList.remove('dragging'); });
+
+document.getElementById('reset').addEventListener('click', () => {
+  state.offsetX = 0; state.offsetY = 0; state.zoom = 1;
+  zoom.value = 1; zoomVal.textContent = '100%'; render();
+});
+
+function downloadBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = (name || 'sierra-summit-speaker') + '.png'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById('download').addEventListener('click', () => {
+  render();
+  const name = (document.getElementById('imgName').value.trim() || `sierra-summit-speaker-${state.aspect.replace(':', 'x')}`);
+  canvas.toBlob(blob => downloadBlob(blob, name), 'image/png');
+});
+
+// ---------- Library (IndexedDB) ----------
+const DB_NAME = 'sierraSummitLibrary', STORE = 'images';
+let libCache = [];
+let libThumbUrls = [];
+function idbOpen() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(DB_NAME, 1);
+    r.onupgradeneeded = () => r.result.createObjectStore(STORE, { keyPath: 'id' });
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+function idbTx(mode, fn) {
+  return idbOpen().then(db => new Promise((res, rej) => {
+    const tx = db.transaction(STORE, mode);
+    const out = fn(tx.objectStore(STORE));
+    tx.oncomplete = () => res(out && out.result !== undefined ? out.result : out);
+    tx.onerror = () => rej(tx.error);
+  }));
+}
+const libPut = rec => idbTx('readwrite', s => s.put(rec));
+const libDel = id => idbTx('readwrite', s => s.delete(id));
+const libGetAll = () => idbTx('readonly', s => s.getAll());
+
+const imgNameEl = document.getElementById('imgName');
+const savedFlash = document.getElementById('savedFlash');
+const openLibBtn = document.getElementById('openLib');
+const libGrid = document.getElementById('libGrid');
+const libEmpty = document.getElementById('libEmpty');
+const libraryModal = document.getElementById('libraryModal');
+
+async function saveCurrent() {
+  if (!state.fgImage) return;
+  render();
+  try {
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    const name = imgNameEl.value.trim() || ('speaker-' + (libCache.length + 1));
+    await libPut({ id: Date.now(), name, blob, aspect: state.aspect, w: canvas.width, h: canvas.height, ts: Date.now() });
+    imgNameEl.value = '';
+    savedFlash.classList.add('show');
+    setTimeout(() => savedFlash.classList.remove('show'), 1500);
+    await refreshLib();
+  } catch (e) {
+    console.error(e);
+    alert('Could not save to the library. Your browser may block storage for local files — try serving the file over http, or use a Chromium-based browser.');
+  }
+}
+
+function esc(s) { return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+async function refreshLib() {
+  libThumbUrls.forEach(u => URL.revokeObjectURL(u));
+  libThumbUrls = [];
+  try { libCache = (await libGetAll()).sort((a, b) => b.ts - a.ts); }
+  catch (e) { console.error(e); openLibBtn.textContent = 'Library (0)'; return; }
+  openLibBtn.textContent = `Library (${libCache.length})`;
+  libGrid.innerHTML = '';
+  libEmpty.style.display = libCache.length ? 'none' : 'block';
+  for (const rec of libCache) {
+    const url = URL.createObjectURL(rec.blob);
+    libThumbUrls.push(url);
+    const item = document.createElement('div');
+    item.className = 'lib-item';
+    item.innerHTML =
+      '<img class="thumb" src="' + url + '" alt="" />' +
+      '<div class="meta">' +
+        '<input type="text" value="' + esc(rec.name) + '" />' +
+        '<div class="tag">' + rec.aspect + ' · ' + rec.w + '×' + rec.h + '</div>' +
+        '<div class="row"><button class="dl">Download</button><button class="del">Delete</button></div>' +
+      '</div>';
+    const nameInput = item.querySelector('input');
+    nameInput.addEventListener('change', async () => { rec.name = nameInput.value.trim() || rec.name; nameInput.value = rec.name; await libPut(rec); });
+    item.querySelector('.dl').addEventListener('click', () => downloadBlob(rec.blob, nameInput.value.trim() || rec.name));
+    item.querySelector('.del').addEventListener('click', async () => { await libDel(rec.id); await refreshLib(); });
+    libGrid.appendChild(item);
+  }
+}
+
+document.getElementById('save').addEventListener('click', saveCurrent);
+imgNameEl.addEventListener('keydown', e => { if (e.key === 'Enter') saveCurrent(); });
+openLibBtn.addEventListener('click', () => libraryModal.classList.add('show'));
+document.getElementById('closeLib').addEventListener('click', () => libraryModal.classList.remove('show'));
+libraryModal.addEventListener('click', e => { if (e.target === libraryModal) libraryModal.classList.remove('show'); });
+
+render();
+refreshLib();
+</script>
+</body>
+</html>
